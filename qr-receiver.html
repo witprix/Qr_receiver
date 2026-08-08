@@ -338,13 +338,15 @@
       const w = video.videoWidth;
       const h = video.videoHeight;
       if (w && h){
-        // downscale for perf, but keep enough resolution for dense QR modules
-        const scale = Math.min(1, 960 / w);
+        // Process at full resolution for maximum clarity on dense QR codes
+        const scale = 1; 
         canvas.width = w * scale;
         canvas.height = h * scale;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
         boostContrast(imageData);
+        
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
         if (code && code.data){
           handleDecoded(code.data);
