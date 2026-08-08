@@ -278,7 +278,6 @@
 
   async function startCamera(){
     try{
-      // Request an optimal 1080p feed. 4K chokes jsQR, and 480p is too blurry.
       stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: { ideal: 'environment' },
@@ -325,7 +324,6 @@
       const w = video.videoWidth;
       const h = video.videoHeight;
       if (w && h){
-        // Cap the processing resolution at 1080px to maintain high FPS for the scanner
         const maxDim = Math.max(w, h);
         const scale = maxDim > 1080 ? 1080 / maxDim : 1;
         
@@ -334,8 +332,6 @@
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        // Removed boostContrast - raw pixels are better for jsQR's internal binarization
-        // dontInvert saves CPU since screens don't output inverted colors
         const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
         
         if (code && code.data){
