@@ -269,7 +269,6 @@
   let assembled = null; 
   let lastDecodeAt = 0;
 
-  // Initialize Native Barcode Detector if available
   let barcodeDetector = null;
   if ('BarcodeDetector' in window) {
     barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
@@ -283,16 +282,6 @@
   }
 
   async function startCamera(){
-    if (!window.isSecureContext) {
-      statusText.textContent = 'insecure page';
-      alert('This page must be loaded over HTTPS (or from localhost) for iOS to allow camera access. Opening the file directly (file://) or over plain http:// will not work — host it on an https server instead.');
-      return;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      statusText.textContent = 'unsupported';
-      alert('This browser does not expose camera access (navigator.mediaDevices is missing). Try Safari or Chrome over https.');
-      return;
-    }
     try{
       stream = await navigator.mediaDevices.getUserMedia({
         video: { 
@@ -349,28 +338,23 @@
         
         let decodedText = null;
 
-        // Try the native hardware scanner first (Instant, handles glare/blur)
         if (barcodeDetector) {
           try {
             const barcodes = await barcodeDetector.detect(canvas);
             if (barcodes.length > 0) {
               decodedText = barcodes[0].rawValue;
             }
-          } catch(e) {
-            // Hardware detection failed, fallback to jsQR
-          }
+          } catch(e) {}
         }
 
-        // Fallback to jsQR if the native scanner isn't supported or missed it
         if (!decodedText) {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
           if (code && code.data) {
             decodedText = code.data;
           }
         }
 
-        // If either method found the data, process it
         if (decodedText){
           handleDecoded(decodedText);
         }
@@ -458,7 +442,7 @@
       try{
         await navigator.share({ files: [file], title: assembled.filename });
         return;
-      }catch(e){ /* fall through to download */ }
+      }catch(e){ }
     }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
