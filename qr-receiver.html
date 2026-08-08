@@ -269,6 +269,12 @@
   let assembled = null; 
   let lastDecodeAt = 0;
 
+  // Initialize Native Barcode Detector if available
+  let barcodeDetector = null;
+  if ('BarcodeDetector' in window) {
+    barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+  }
+
   function base64ToUtf8(b64){
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
@@ -319,7 +325,7 @@
     });
   }
 
-  function tick(){
+  async function tick(){
     if (video.readyState === video.HAVE_ENOUGH_DATA){
       const w = video.videoWidth;
       const h = video.videoHeight;
@@ -330,12 +336,33 @@
         canvas.width = w * scale;
         canvas.height = h * scale;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-        
-        if (code && code.data){
-          handleDecoded(code.data);
+        let decodedText = null;
+
+        // Try the native hardware scanner first (Instant, handles glare/blur)
+        if (barcodeDetector) {
+          try {
+            const barcodes = await barcodeDetector.detect(canvas);
+            if (barcodes.length > 0) {
+              decodedText = barcodes[0].rawValue;
+            }
+          } catch(e) {
+            // Hardware detection failed, fallback to jsQR
+          }
+        }
+
+        // Fallback to jsQR if the native scanner isn't supported or missed it
+        if (!decodedText) {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+          if (code && code.data) {
+            decodedText = code.data;
+          }
+        }
+
+        // If either method found the data, process it
+        if (decodedText){
+          handleDecoded(decodedText);
         }
       }
     }
