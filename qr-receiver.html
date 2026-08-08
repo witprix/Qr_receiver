@@ -264,9 +264,9 @@
 
   let stream = null;
   let rafId = null;
-  let sessions = {}; // id -> {total, filename, chunks: Map}
+  let sessions = {}; 
   let activeId = null;
-  let assembled = null; // {filename, content}
+  let assembled = null; 
   let lastDecodeAt = 0;
 
   function base64ToUtf8(b64){
@@ -278,8 +278,13 @@
 
   async function startCamera(){
     try{
+      // Request an optimal 1080p feed. 4K chokes jsQR, and 480p is too blurry.
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
+        video: { 
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1080 },
+          height: { ideal: 1080 }
+        },
         audio: false
       });
     }catch(e){
@@ -315,39 +320,24 @@
     });
   }
 
-  function boostContrast(imageData){
-    // simple contrast stretch on luminance, helps jsQR read dim/washed-out screen captures
-    const d = imageData.data;
-    let min = 255, max = 0;
-    for (let i = 0; i < d.length; i += 4){
-      const lum = (d[i] + d[i+1] + d[i+2]) / 3;
-      if (lum < min) min = lum;
-      if (lum > max) max = lum;
-    }
-    const range = max - min;
-    if (range < 20) return; // avoid dividing by near-zero, low-contrast frame not worth touching
-    for (let i = 0; i < d.length; i += 4){
-      for (let c = 0; c < 3; c++){
-        d[i+c] = ((d[i+c] - min) / range) * 255;
-      }
-    }
-  }
-
   function tick(){
     if (video.readyState === video.HAVE_ENOUGH_DATA){
       const w = video.videoWidth;
       const h = video.videoHeight;
       if (w && h){
-        // Process at full resolution for maximum clarity on dense QR codes
-        const scale = 1; 
+        // Cap the processing resolution at 1080px to maintain high FPS for the scanner
+        const maxDim = Math.max(w, h);
+        const scale = maxDim > 1080 ? 1080 / maxDim : 1;
+        
         canvas.width = w * scale;
         canvas.height = h * scale;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        boostContrast(imageData);
+        // Removed boostContrast - raw pixels are better for jsQR's internal binarization
+        // dontInvert saves CPU since screens don't output inverted colors
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
         
-        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
         if (code && code.data){
           handleDecoded(code.data);
         }
